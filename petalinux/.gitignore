@@ -1,0 +1,4 @@
+petalinux-installer.run
+petalinux-v*-installer.run
+petalinux-v*-final-installer.run
+installer/

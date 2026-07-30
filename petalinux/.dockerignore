@@ -1,0 +1,9 @@
+*
+!common/
+!common/entrypoint.sh
+!2021.1/
+!2021.1/Dockerfile
+!2021.1/install_config.txt
+!2026.1/
+!2026.1/Dockerfile
+!petalinux-installer.run

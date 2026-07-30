@@ -1,0 +1,11 @@
+#### PetaLinux All platforms Install Configuration ####
+Edition=PetaLinux All platforms
+Product=PetaLinux
+Destination=/opt/Xilinx
+Modules=
+InstallOptions=Enable WebTalk for Vivado to send usage statistics to Xilinx (Always enabled for Vivado ML Standard license):0
+CreateProgramGroupShortcuts=0
+CreateShortcutsForAllUsers=0
+CreateDesktopShortcuts=0
+CreateFileAssociation=0
+EnableDiskUsageOptimization=1
