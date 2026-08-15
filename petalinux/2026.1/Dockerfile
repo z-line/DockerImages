@@ -12,9 +12,13 @@ ARG GROUP_ID=1000
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
 # Host packages required by PetaLinux/Yocto on Ubuntu 22.04.
-RUN dpkg --add-architecture i386 \
-    && apt-get update \
-    && apt-get install -y --no-install-recommends \
+RUN sed -i \
+        -e 's|http://archive.ubuntu.com/ubuntu|http://mirrors.tuna.tsinghua.edu.cn/ubuntu|g' \
+        -e 's|http://security.ubuntu.com/ubuntu|http://mirrors.tuna.tsinghua.edu.cn/ubuntu|g' \
+        /etc/apt/sources.list \
+    && dpkg --add-architecture i386 \
+    && apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=30 update \
+    && apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=30 install -y --no-install-recommends \
         autoconf \
         automake \
         bc \
@@ -64,6 +68,7 @@ RUN dpkg --add-architecture i386 \
         tmux \
         unzip \
         wget \
+        x11-utils \
         xterm \
         xz-utils \
         zlib1g-dev \
@@ -92,7 +97,7 @@ WORKDIR /home/${USER_NAME}
 RUN --mount=type=bind,source=petalinux-installer.run,target=/tmp/petalinux-installer.run,ro \
     platform_args=() \
     && if [[ -n "${PETALINUX_PLATFORM}" ]]; then platform_args=(--platform "${PETALINUX_PLATFORM}"); fi \
-    && /tmp/petalinux-installer.run \
+    && bash /tmp/petalinux-installer.run \
         --dir "${PETALINUX}" \
         --log /tmp/petalinux-install.log \
         -y \

@@ -34,6 +34,21 @@ PetaLinux 2026.1 官方流程使用独立安装器：
 
 可用 `PETALINUX_PLATFORM` 选择 `arm`、`aarch64`、`microblaze`，留空安装全部平台。
 
+## 自动化测试
+
+构建完成后可运行 PetaLinux 2026.1 的非交互式镜像契约测试：
+
+```bash
+make test
+```
+
+测试验证入口环境、主要 PetaLinux 命令、非 root 用户和可写工作目录。CI/CD 可用
+`IMAGE_NAME` 指向刚构建或从镜像仓库拉取的标签：
+
+```bash
+IMAGE_NAME=registry.example.com/petalinux:2026.1 make test
+```
+
 ## 运行
 
 统一运行脚本通过版本变量选择镜像：

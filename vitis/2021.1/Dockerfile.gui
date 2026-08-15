@@ -1,0 +1,18 @@
+FROM vitis:2021.1
+
+USER root
+
+RUN apt-get -o Acquire::Retries=5 update \
+    && apt-get -o Acquire::Retries=5 install -y --no-install-recommends \
+        openbox \
+        x11-xserver-utils \
+        xdotool \
+        xfonts-base \
+        xserver-xephyr \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY --chown=1000:1000 common/nested-gui.sh /usr/local/bin/vitis-nested-gui
+RUN chmod 0755 /usr/local/bin/vitis-nested-gui
+
+USER vitis
+WORKDIR /workspace

@@ -1,0 +1,5 @@
+.vitis/
+.Xil/
+*.jou
+*.log
+*.str
