@@ -25,9 +25,9 @@ image_exists() {
 
 run_test "base image exists" image_exists "${image}"
 run_test "Vitis environment and CLI tools" \
-    docker run --rm "${image}" bash -lc '
+    docker run --rm --env "EXPECTED_VITIS_VERSION=${version}" "${image}" bash -lc '
         test "$(id -u)" -ne 0
-        test "${VITIS_VERSION}" = "2021.1"
+        test "${VITIS_VERSION}" = "${EXPECTED_VITIS_VERSION}"
         test -f "${XILINX_VITIS}/settings64.sh"
         command -v xsct >/dev/null
         command -v vitis >/dev/null

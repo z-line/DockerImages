@@ -17,9 +17,9 @@ image_exists() {
 
 run_test "image exists" image_exists "${image}"
 run_test "PetaLinux environment and CLI tools" \
-    docker run --rm "${image}" bash -lc '
+    docker run --rm --env "EXPECTED_PETALINUX_VERSION=${version}" "${image}" bash -lc '
         test "$(id -u)" -ne 0
-        test "${PETALINUX}" = /opt/petalinux/2026.1
+        test "${PETALINUX}" = "/opt/petalinux/${EXPECTED_PETALINUX_VERSION}"
         test -f "${PETALINUX}/settings.sh"
         command -v petalinux-create >/dev/null
         command -v petalinux-build >/dev/null
