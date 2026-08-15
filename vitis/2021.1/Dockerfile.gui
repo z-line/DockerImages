@@ -1,9 +1,15 @@
-FROM vitis:2021.1
+ARG BASE_IMAGE=vitis:2021.1
+FROM ${BASE_IMAGE}
+
+ARG DEBIAN_FRONTEND=noninteractive
+ARG USER_NAME=vitis
+ARG USER_ID=1000
+ARG GROUP_ID=1000
 
 USER root
 
-RUN apt-get -o Acquire::Retries=5 update \
-    && apt-get -o Acquire::Retries=5 install -y --no-install-recommends \
+RUN apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=30 update \
+    && apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=30 install -y --no-install-recommends \
         openbox \
         x11-xserver-utils \
         xdotool \
@@ -11,8 +17,8 @@ RUN apt-get -o Acquire::Retries=5 update \
         xserver-xephyr \
     && rm -rf /var/lib/apt/lists/*
 
-COPY --chown=1000:1000 common/nested-gui.sh /usr/local/bin/vitis-nested-gui
+COPY --chown=${USER_ID}:${GROUP_ID} common/nested-gui.sh /usr/local/bin/vitis-nested-gui
 RUN chmod 0755 /usr/local/bin/vitis-nested-gui
 
-USER vitis
+USER ${USER_NAME}
 WORKDIR /workspace

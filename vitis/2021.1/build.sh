@@ -3,7 +3,7 @@ set -euo pipefail
 
 script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 root_dir="$(cd -- "${script_dir}/.." && pwd)"
-installer="${1:-/home/zline/下载/Xilinx_Unified_2021.1_0610_2318.tar.gz}"
+installer="${1:-${root_dir}/installer/Xilinx_Unified_2021.1_0610_2318.tar.gz}"
 image="${IMAGE_NAME:-vitis:2021.1}"
 
 if [[ ! -f "${installer}" ]]; then
@@ -24,6 +24,7 @@ fi
 docker build \
     --security-opt label=disable \
     --volume "${installer_dir}:/installer:ro" \
+    --build-arg "USER_NAME=${USER_NAME:-vitis}" \
     --build-arg "USER_ID=${USER_ID:-$(id -u)}" \
     --build-arg "GROUP_ID=${GROUP_ID:-$(id -g)}" \
     --tag "${image}" \
@@ -32,6 +33,10 @@ docker build \
 
 docker build \
     --security-opt label=disable \
+    --build-arg "BASE_IMAGE=${image}" \
+    --build-arg "USER_NAME=${USER_NAME:-vitis}" \
+    --build-arg "USER_ID=${USER_ID:-$(id -u)}" \
+    --build-arg "GROUP_ID=${GROUP_ID:-$(id -g)}" \
     --tag "${image}-gui" \
     --file "${script_dir}/Dockerfile.gui" \
     "${root_dir}"

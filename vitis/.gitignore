@@ -1,5 +1,6 @@
 .vitis/
 .Xil/
+installer/
 *.jou
 *.log
 *.str

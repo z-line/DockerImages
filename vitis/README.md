@@ -5,7 +5,8 @@ Ubuntu 18.04，并从 Unified Installer 完整安装 Vitis、Vivado 和对应器
 
 ## 构建
 
-默认使用本机安装包：
+默认使用仓库中 `installer/` 目录下的安装包（可软链接到本机安装包，与 PetaLinux
+2021.1 相同）：
 
 ```bash
 make 2021.1
@@ -17,7 +18,9 @@ make 2021.1
 ./2021.1/build.sh /path/to/Xilinx_Unified_2021.1_0610_2318.tar.gz
 ```
 
-构建会生成 `vitis:2021.1`。安装包通过只读构建卷提供，不会复制到最终镜像层。
+构建会生成 `vitis:2021.1` 和 `vitis:2021.1-gui`。安装包通过只读构建卷提供，不会
+复制到最终镜像层。构建依赖 Podman/Buildah 的构建卷功能（当前系统的 `docker`
+命令由 Podman 兼容层提供），在标准 Docker daemon 上无法使用 `--volume` 构建卷。
 完整安装需要较长时间和较大的磁盘空间。
 
 ## 自动化测试
