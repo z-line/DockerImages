@@ -110,16 +110,26 @@ if [[ -n "${DISPLAY:-}" && -d /tmp/.X11-unix ]]; then
     xauthority="${XAUTHORITY:-${HOME}/.Xauthority}"
     if [[ -f "${xauthority}" ]]; then
         temporary_xauthority="$(mktemp /tmp/vitis-xauth.XXXXXX)"
-        if ! xauth -f "${xauthority}" nlist "${DISPLAY}" \
+        # Rewrite the cookie family (first 4 hex chars -> ffff) so the copy is
+        # bound to this display only and cannot be replayed elsewhere. Never
+        # fall back to copying the raw host .Xauthority, which would expose
+        # cookies for every display. If the rewrite fails or yields no entries
+        # for this display, skip X authority and rely on the host xhost
+        # fallback (see README) instead.
+        if xauth -f "${xauthority}" nlist "${DISPLAY}" \
             | sed -e 's/^..../ffff/' \
-            | xauth -f "${temporary_xauthority}" nmerge -; then
-            cp -- "${xauthority}" "${temporary_xauthority}"
+            | xauth -f "${temporary_xauthority}" nmerge - \
+            && [[ -s "${temporary_xauthority}" ]]; then
+            chmod 0600 "${temporary_xauthority}"
+            docker_args+=(
+                --env XAUTHORITY=/tmp/.vitis.Xauthority
+                --volume "${temporary_xauthority}:/tmp/.vitis.Xauthority:ro,z"
+            )
+        else
+            rm -f -- "${temporary_xauthority}"
+            temporary_xauthority=""
+            echo "Warning: no usable X11 cookie for DISPLAY=${DISPLAY}; X clients will rely on host xhost access (see vitis/README.md)" >&2
         fi
-        chmod 0600 "${temporary_xauthority}"
-        docker_args+=(
-            --env XAUTHORITY=/tmp/.vitis.Xauthority
-            --volume "${temporary_xauthority}:/tmp/.vitis.Xauthority:ro,z"
-        )
     fi
 
     if [[ "${VITIS_USE_GPU:-${default_use_gpu}}" == "1" && -d /dev/dri ]]; then
@@ -132,6 +142,8 @@ if [[ -n "${DISPLAY:-}" && -d /tmp/.X11-unix ]]; then
             --env _JAVA_OPTIONS=-Dsun.java2d.xrender=false
         )
     fi
+elif [[ -n "${DISPLAY:-}" ]]; then
+    echo "Warning: DISPLAY=${DISPLAY} set but /tmp/.X11-unix missing; running headless" >&2
 fi
 
 docker run "${docker_args[@]}" "${image}" "$@"
