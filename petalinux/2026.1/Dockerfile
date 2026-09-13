@@ -5,6 +5,7 @@ FROM ubuntu:22.04
 ARG DEBIAN_FRONTEND=noninteractive
 ARG PETALINUX_VERSION=2026.1
 ARG PETALINUX_PLATFORM=
+ARG UBUNTU_APT_MIRROR
 ARG USER_NAME=petalinux
 ARG USER_ID=1000
 ARG GROUP_ID=1000
@@ -12,10 +13,17 @@ ARG GROUP_ID=1000
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
 # Host packages required by PetaLinux/Yocto on Ubuntu 22.04.
-RUN sed -i \
-        -e 's|http://archive.ubuntu.com/ubuntu|http://mirrors.tuna.tsinghua.edu.cn/ubuntu|g' \
-        -e 's|http://security.ubuntu.com/ubuntu|http://mirrors.tuna.tsinghua.edu.cn/ubuntu|g' \
-        /etc/apt/sources.list \
+# UBUNTU_APT_MIRROR is optional; when set, sources.list is rewritten after
+# installing ca-certificates so https mirrors work.
+RUN if [ -n "${UBUNTU_APT_MIRROR}" ]; then \
+        apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=30 update \
+        && apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=30 install -y --no-install-recommends ca-certificates \
+        && mirror="${UBUNTU_APT_MIRROR%/}" \
+        && sed -i \
+            -e "s|http://archive.ubuntu.com/ubuntu|${mirror}|g" \
+            -e "s|http://security.ubuntu.com/ubuntu|${mirror}|g" \
+            /etc/apt/sources.list; \
+    fi \
     && dpkg --add-architecture i386 \
     && apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=30 update \
     && apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=30 install -y --no-install-recommends \
@@ -83,7 +91,9 @@ RUN groupadd --gid "${GROUP_ID}" "${USER_NAME}" \
     && chmod 0440 "/etc/sudoers.d/${USER_NAME}" \
     && install -d -o "${USER_ID}" -g "${GROUP_ID}" \
         "/opt/petalinux/${PETALINUX_VERSION}" \
-        /workspace
+        /workspace \
+        /downloads \
+        /sstate-cache
 
 ENV LANG=en_US.UTF-8 \
     LC_ALL=en_US.UTF-8 \

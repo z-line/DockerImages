@@ -3,16 +3,15 @@ set -euo pipefail
 
 version="${VITIS_VERSION:-2021.1}"
 project_dir="${1:-$PWD}"
-temporary_xauthority=""
-temporary_xresources=""
+temporary_dir=""
 shift || true
 
+# GUI support files (Xresources, rewritten Xauthority cookie) live in a
+# private mktemp -d (0700) directory so other users cannot read the cookie
+# copy before cleanup removes it. Processes with the same UID are not isolated.
 cleanup() {
-    if [[ -n "${temporary_xauthority}" ]]; then
-        rm -f -- "${temporary_xauthority}"
-    fi
-    if [[ -n "${temporary_xresources}" ]]; then
-        rm -f -- "${temporary_xresources}"
+    if [[ -n "${temporary_dir}" ]]; then
+        rm -rf -- "${temporary_dir}"
     fi
 }
 trap cleanup EXIT
@@ -96,7 +95,8 @@ if [[ -n "${DISPLAY:-}" && -d /tmp/.X11-unix ]]; then
         --env NO_AT_BRIDGE=1
     )
 
-    temporary_xresources="$(mktemp /tmp/vitis-xresources.XXXXXX)"
+    temporary_dir="$(mktemp -d /tmp/vitis-gui.XXXXXX)"
+    temporary_xresources="${temporary_dir}/Xresources"
     printf '%s\n' \
         'XTerm*font: fixed' \
         'XTerm*boldMode: false' \
@@ -109,13 +109,15 @@ if [[ -n "${DISPLAY:-}" && -d /tmp/.X11-unix ]]; then
 
     xauthority="${XAUTHORITY:-${HOME}/.Xauthority}"
     if [[ -f "${xauthority}" ]]; then
-        temporary_xauthority="$(mktemp /tmp/vitis-xauth.XXXXXX)"
-        # Rewrite the cookie family (first 4 hex chars -> ffff) so the copy is
-        # bound to this display only and cannot be replayed elsewhere. Never
-        # fall back to copying the raw host .Xauthority, which would expose
-        # cookies for every display. If the rewrite fails or yields no entries
-        # for this display, skip X authority and rely on the host xhost
-        # fallback (see README) instead.
+        temporary_xauthority="${temporary_dir}/Xauthority"
+        : > "${temporary_xauthority}"
+        # Copy only this display's cookie, never the whole host .Xauthority.
+        # The network family is rewritten to FamilyWild (ffff) so the X server
+        # accepts the cookie regardless of the connection family the container
+        # uses; the wildcard widens address matching, but the copy still
+        # grants this one display only. If the rewrite fails or yields no
+        # entries for this display, skip X authority and rely on the host
+        # xhost fallback (see README) instead.
         if xauth -f "${xauthority}" nlist "${DISPLAY}" \
             | sed -e 's/^..../ffff/' \
             | xauth -f "${temporary_xauthority}" nmerge - \
@@ -132,9 +134,27 @@ if [[ -n "${DISPLAY:-}" && -d /tmp/.X11-unix ]]; then
         fi
     fi
 
+    gpu_devices=()
     if [[ "${VITIS_USE_GPU:-${default_use_gpu}}" == "1" && -d /dev/dri ]]; then
         for device in /dev/dri/*; do
-            [[ -c "${device}" ]] && docker_args+=(--device "${device}")
+            if [[ -c "${device}" && -r "${device}" && -w "${device}" ]]; then
+                gpu_devices+=("${device}")
+            fi
+        done
+    fi
+
+    if (( ${#gpu_devices[@]} > 0 )); then
+        # Rootless Podman bind-mounts devices with their host permissions.
+        # Preserve the invoking user's render/video group access in-container.
+        # keep-groups needs rootless Podman >= 4.0 and a runtime that supports
+        # it, so probe before adding the flag instead of failing the run.
+        if docker run --help 2>/dev/null | grep -q -- 'keep-groups'; then
+            docker_args+=(--group-add keep-groups)
+        else
+            echo "Warning: runtime lacks '--group-add keep-groups'; GPU device permissions may be denied (set VITIS_USE_GPU=0 to force software rendering)" >&2
+        fi
+        for device in "${gpu_devices[@]}"; do
+            docker_args+=(--device "${device}")
         done
     else
         docker_args+=(

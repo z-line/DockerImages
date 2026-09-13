@@ -1,2 +1,9 @@
 # Local FlexNet/Vivado license material must not be committed.
 /license.lic
+
+# GUI session artifacts and local agent state.
+*.jou
+*.log
+*.str
+xrc.log
+/.omo/

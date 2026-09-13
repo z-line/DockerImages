@@ -1,15 +1,27 @@
 FROM ubuntu:18.04
 
 ARG DEBIAN_FRONTEND=noninteractive
+ARG UBUNTU_APT_MIRROR
 ARG USER_NAME=petalinux
 ARG USER_ID=1000
 ARG GROUP_ID=1000
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
-RUN dpkg --add-architecture i386 \
-    && apt-get update \
-    && apt-get install -y --no-install-recommends \
+# UBUNTU_APT_MIRROR is optional; when set, sources.list is rewritten after
+# installing ca-certificates so https mirrors work.
+RUN if [ -n "${UBUNTU_APT_MIRROR}" ]; then \
+        apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=30 update \
+        && apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=30 install -y --no-install-recommends ca-certificates \
+        && mirror="${UBUNTU_APT_MIRROR%/}" \
+        && sed -i \
+            -e "s|http://archive.ubuntu.com/ubuntu|${mirror}|g" \
+            -e "s|http://security.ubuntu.com/ubuntu|${mirror}|g" \
+            /etc/apt/sources.list; \
+    fi \
+    && dpkg --add-architecture i386 \
+    && apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=30 update \
+    && apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=30 install -y --no-install-recommends \
         autoconf \
         automake \
         bc \
@@ -72,7 +84,7 @@ RUN groupadd --gid "${GROUP_ID}" "${USER_NAME}" \
     && useradd --uid "${USER_ID}" --gid "${GROUP_ID}" --create-home --shell /bin/bash "${USER_NAME}" \
     && echo "${USER_NAME} ALL=(ALL) NOPASSWD:ALL" > "/etc/sudoers.d/${USER_NAME}" \
     && chmod 0440 "/etc/sudoers.d/${USER_NAME}" \
-    && install -d -o "${USER_ID}" -g "${GROUP_ID}" /opt/Xilinx /workspace /tmp/xilinx-installer
+    && install -d -o "${USER_ID}" -g "${GROUP_ID}" /opt/Xilinx /workspace /downloads /sstate-cache /tmp/xilinx-installer
 
 ENV LANG=en_US.UTF-8 \
     LC_ALL=en_US.UTF-8 \

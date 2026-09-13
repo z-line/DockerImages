@@ -5,10 +5,13 @@ Ubuntu 18.04，并从 Unified Installer 完整安装 Vitis、Vivado 和对应器
 
 ## 构建
 
-默认使用仓库中 `installer/` 目录下的安装包（可软链接到本机安装包，与 PetaLinux
-2021.1 相同）：
+安装包不会提交到版本库。默认使用 `vitis/installer/` 下的安装包（该目录被
+`.gitignore` 忽略），因此首次构建需先创建软链接：
 
 ```bash
+mkdir -p installer
+ln -s /path/to/Xilinx_Unified_2021.1_0610_2318.tar.gz \
+    installer/Xilinx_Unified_2021.1_0610_2318.tar.gz
 make 2021.1
 ```
 
@@ -22,6 +25,14 @@ make 2021.1
 复制到最终镜像层。构建依赖 Podman/Buildah 的构建卷功能（当前系统的 `docker`
 命令由 Podman 兼容层提供），在标准 Docker daemon 上无法使用 `--volume` 构建卷。
 完整安装需要较长时间和较大的磁盘空间。
+
+默认使用 Ubuntu 官方软件源。需要使用镜像站加速时，通过 `UBUNTU_APT_MIRROR`
+显式指定（与 Yocto 镜像一致）：
+
+```bash
+UBUNTU_APT_MIRROR=https://mirrors.tuna.tsinghua.edu.cn/ubuntu \
+    ./2021.1/build.sh
+```
 
 ## 自动化测试
 
@@ -109,7 +120,12 @@ Vivado，使其铺满整个 Xephyr 窗口。后台尺寸监视器每 250 ms 检�
 
 为允许 Fedora/RHEL 系列宿主上的 SELinux 访问 X11 socket，GUI 模式会禁用该
 容器的 SELinux label 隔离。容器默认分配 2 GiB 共享内存；可以通过
-`VITIS_SHM_SIZE=4g` 调整。
+`VITIS_SHM_SIZE=4g` 调整。`vitis` 命令默认直通当前用户可读写的 `/dev/dri` GPU
+设备，并保留宿主的 `render`/`video` 补充组权限以启用硬件渲染；无可用设备时
+自动回退软件渲染。GPU 直通依赖 rootless Podman 的 `--group-add keep-groups`
+（Podman >= 4.0，且运行时支持），运行脚本会先探测该能力，不支持时会给出警告
+并继续（可能需要设置 `VITIS_USE_GPU=0` 强制软件渲染）。`vivado` 嵌套 GUI
+始终使用软件渲染。
 
 在 Wayland 桌面下，Vitis 2021.1 通过 XWayland 显示，因此宿主仍需提供
 `DISPLAY` 和 `/tmp/.X11-unix`。如果宿主没有 Xauthority 文件，可临时授权当前

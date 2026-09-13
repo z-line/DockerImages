@@ -11,9 +11,16 @@ if [[ "$#" -eq 0 ]]; then
     set -- bash
 fi
 
-exec docker run --rm -it \
-    --userns=keep-id \
-    --volume "${source_dir}:/workspace:z" \
-    --volume "${downloads}:/downloads:z" \
-    --workdir /workspace \
-    "${image}" "$@"
+docker_args=(
+    --rm
+    --userns=keep-id
+    --volume "${source_dir}:/workspace:z"
+    --volume "${downloads}:/downloads:z"
+    --workdir /workspace
+)
+
+if [[ -t 0 && -t 1 ]]; then
+    docker_args+=(-it)
+fi
+
+exec docker run "${docker_args[@]}" "${image}" "$@"

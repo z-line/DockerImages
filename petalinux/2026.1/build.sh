@@ -18,6 +18,13 @@ if [[ ! -x "${installer}" ]]; then
     chmod u+x "${installer}"
 fi
 
+# The installer is staged at a fixed path inside the build context, so
+# serialize concurrent builds of this checkout; otherwise parallel runs would
+# overwrite each other's file. The lock is held until the script exits.
+lock_path="${TMPDIR:-/tmp}/petalinux-build-$(printf '%s' "${root_dir}" | cksum | cut -d' ' -f1).lock"
+exec 9>"${lock_path}"
+flock 9
+
 temporary_installer=false
 if [[ "${installer}" != "${root_dir}/petalinux-installer.run" ]]; then
     # Docker build contexts cannot follow a symlink that points outside the context.
@@ -36,6 +43,7 @@ trap cleanup EXIT
 DOCKER_BUILDKIT=1 docker build \
     --build-arg "PETALINUX_VERSION=${version}" \
     --build-arg "PETALINUX_PLATFORM=${platform}" \
+    --build-arg "UBUNTU_APT_MIRROR=${UBUNTU_APT_MIRROR:-}" \
     --build-arg "USER_ID=${USER_ID:-$(id -u)}" \
     --build-arg "GROUP_ID=${GROUP_ID:-$(id -g)}" \
     --tag "${image}" \

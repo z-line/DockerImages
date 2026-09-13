@@ -24,6 +24,7 @@ fi
 docker build \
     --security-opt label=disable \
     --volume "${installer_dir}:/installer:ro" \
+    --build-arg "UBUNTU_APT_MIRROR=${UBUNTU_APT_MIRROR:-}" \
     --build-arg "USER_NAME=${USER_NAME:-vitis}" \
     --build-arg "USER_ID=${USER_ID:-$(id -u)}" \
     --build-arg "GROUP_ID=${GROUP_ID:-$(id -g)}" \

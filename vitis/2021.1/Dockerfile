@@ -2,16 +2,24 @@ FROM ubuntu:18.04
 
 ARG DEBIAN_FRONTEND=noninteractive
 ARG VITIS_VERSION=2021.1
+ARG UBUNTU_APT_MIRROR
 ARG USER_NAME=vitis
 ARG USER_ID=1000
 ARG GROUP_ID=1000
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
-RUN sed -i \
-        -e 's|http://archive.ubuntu.com/ubuntu|http://mirrors.tuna.tsinghua.edu.cn/ubuntu|g' \
-        -e 's|http://security.ubuntu.com/ubuntu|http://mirrors.tuna.tsinghua.edu.cn/ubuntu|g' \
-        /etc/apt/sources.list \
+# UBUNTU_APT_MIRROR is optional; when set, sources.list is rewritten after
+# installing ca-certificates so https mirrors work.
+RUN if [ -n "${UBUNTU_APT_MIRROR}" ]; then \
+        apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=30 update \
+        && apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=30 install -y --no-install-recommends ca-certificates \
+        && mirror="${UBUNTU_APT_MIRROR%/}" \
+        && sed -i \
+            -e "s|http://archive.ubuntu.com/ubuntu|${mirror}|g" \
+            -e "s|http://security.ubuntu.com/ubuntu|${mirror}|g" \
+            /etc/apt/sources.list; \
+    fi \
     && dpkg --add-architecture i386 \
     && apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=30 update \
     && apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=30 install -y --no-install-recommends \

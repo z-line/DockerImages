@@ -8,6 +8,13 @@ ccache、依赖图和包统计所需的常用可选工具。
 ./run.sh /path/to/buildroot
 ```
 
+默认使用 Ubuntu 官方软件源。需要使用镜像站加速时，通过 `UBUNTU_APT_MIRROR`
+显式指定：
+
+```bash
+UBUNTU_APT_MIRROR=https://mirrors.tuna.tsinghua.edu.cn/ubuntu ./build.sh
+```
+
 直接编译：
 
 ```bash

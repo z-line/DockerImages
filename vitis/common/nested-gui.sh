@@ -81,11 +81,13 @@ fi
 
 last_geometry=""
 while kill -0 "${application_pid}" 2>/dev/null; do
+    # xwininfo may fail transiently while Xephyr resizes; never let that
+    # abort the monitor loop and tear the application down.
     geometry="$(xwininfo -root 2>/dev/null | awk '
         /Width:/ { width=$2 }
         /Height:/ { height=$2 }
         END { if (width && height) print width "x" height }
-    ')"
+    ')" || geometry=""
     if [[ -n "${geometry}" && "${geometry}" != "${last_geometry}" ]]; then
         width="${geometry%x*}"
         height="${geometry#*x}"

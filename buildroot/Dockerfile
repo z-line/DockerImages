@@ -1,12 +1,24 @@
 FROM ubuntu:22.04
 
 ARG DEBIAN_FRONTEND=noninteractive
+ARG UBUNTU_APT_MIRROR
 ARG USER_NAME=builder
 ARG USER_ID=1000
 ARG GROUP_ID=1000
 
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends \
+# UBUNTU_APT_MIRROR is optional; when set, sources.list is rewritten after
+# installing ca-certificates so https mirrors work.
+RUN if [ -n "${UBUNTU_APT_MIRROR}" ]; then \
+        apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=30 update \
+        && apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=30 install -y --no-install-recommends ca-certificates \
+        && mirror="${UBUNTU_APT_MIRROR%/}" \
+        && sed -i \
+            -e "s|http://archive.ubuntu.com/ubuntu|${mirror}|g" \
+            -e "s|http://security.ubuntu.com/ubuntu|${mirror}|g" \
+            /etc/apt/sources.list; \
+    fi \
+    && apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=30 update \
+    && apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=30 install -y --no-install-recommends \
         bc \
         binutils \
         bison \
