@@ -1,0 +1,31 @@
+{
+  "name": "project-dev",
+  "build": {
+    "dockerfile": "../Dockerfile.dev",
+    "context": "..",
+    "args": {
+      "USER_ID": "${localEnv:USER_ID:1000}",
+      "GROUP_ID": "${localEnv:GROUP_ID:1000}",
+      "UBUNTU_APT_MIRROR": "${localEnv:UBUNTU_APT_MIRROR}"
+    }
+  },
+  "remoteUser": "dev",
+  "updateRemoteUserUID": true,
+  "workspaceFolder": "/workspace",
+  "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind",
+  "mounts": [
+    "source=${localEnv:HOME}/.cache/project-dev,target=/home/dev/.cache,type=bind"
+  ],
+  "containerEnv": {
+    "CACHE_ROOT": "/home/dev/.cache"
+  },
+  "postCreateCommand": "true",
+  "runArgs": [
+    "--userns=keep-id"
+  ],
+  "customizations": {
+    "vscode": {
+      "extensions": []
+    }
+  }
+}
