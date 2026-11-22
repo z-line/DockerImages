@@ -22,6 +22,7 @@ commands:
                                 prune sstate entries older than N days (default 30)
                                 and cap each derived ccache directory (default 5G)
   migrate --from DIR            merge a legacy per-project cache into the shared root
+                                (no-clobber, skips tmpk_*, refuses while a build runs)
   rm [--yes]                    remove sstate for the selected version/arch
 
 environment:
@@ -83,7 +84,13 @@ prune_ccache() {
         return 0
     fi
 
+    local host_ccache_major=""
     if command -v ccache >/dev/null 2>&1; then
+        host_ccache_major="$(ccache --version 2>/dev/null \
+            | sed -n '1s/.*version \([0-9][0-9]*\).*/\1/p')"
+    fi
+
+    if [[ -n "${host_ccache_major}" ]] && ((host_ccache_major >= 4)); then
         while IFS= read -r -d '' dir; do
             ccache --dir "${dir}" --max-size "${max_size}" >/dev/null 2>&1 || true
             ccache --dir "${dir}" --cleanup >/dev/null 2>&1 || true
@@ -102,7 +109,7 @@ prune_ccache() {
                     done
             '
     else
-        echo "warning: ccache not found and image ${yocto_image} is unavailable; skipping ccache cleanup" >&2
+        echo "warning: ccache >= 4 not found and image ${yocto_image} is unavailable; skipping ccache cleanup" >&2
     fi
 }
 
@@ -157,7 +164,8 @@ cmd_gc() {
 }
 
 merge_tree() {
-    local src="$1" dst="$2"
+    local src="$1" dst="$2" exclude="${3:-}"
+    local entry name
 
     [[ -d "${src}" ]] || return 0
     [[ -n "$(find "${src}" -mindepth 1 -print -quit 2>/dev/null)" ]] || return 0
@@ -166,12 +174,37 @@ merge_tree() {
     fi
 
     mkdir -p "${dst}"
-    cp -a -- "${src}/." "${dst}/"
+    while IFS= read -r -d '' entry; do
+        name="${entry##*/}"
+        # shellcheck disable=SC2053 # exclude is an intentional glob
+        if [[ -n "${exclude}" && "${name}" == ${exclude} ]]; then
+            printf 'skipped %s\n' "${entry}"
+            continue
+        fi
+        if [[ -f "${entry}" && -f "${dst}/${name}" ]] \
+            && ! cmp -s -- "${entry}" "${dst}/${name}"; then
+            printf 'kept existing (content differs): %s\n' "${dst}/${name}"
+            continue
+        fi
+        cp -a --reflink=auto --no-clobber -- "${entry}" "${dst}/"
+    done < <(find "${src}" -mindepth 1 -maxdepth 1 -print0)
     printf 'merged %s -> %s\n' "${src}" "${dst}"
+}
+
+warn_absolute_symlinks() {
+    local src="$1" link
+
+    [[ -d "${src}" ]] || return 0
+    link="$(find "${src}" -type l -lname '/*' -print -quit 2>/dev/null || true)"
+    if [[ -n "${link}" ]]; then
+        printf 'warning: absolute symlink preserved: %s\n' "${link}" >&2
+        printf '         it may dangle outside its original container; replace it with a real file if needed\n' >&2
+    fi
 }
 
 cmd_migrate() {
     local from=""
+    local layered_src=""
 
     while (($#)); do
         case "$1" in
@@ -194,13 +227,27 @@ cmd_migrate() {
     [[ -d "${from}" ]] || die "source directory not found: ${from}"
 
     mkdir -p "${yocto_cache_root}/downloads" "${yocto_cache_root}/ccache" "${yocto_sstate_dir}"
+    acquire_lock
 
-    merge_tree "${from}/downloads" "${yocto_cache_root}/downloads"
+    warn_absolute_symlinks "${from}/downloads"
+    warn_absolute_symlinks "${from}/ccache"
+    warn_absolute_symlinks "${from}/sstate-cache"
+    warn_absolute_symlinks "${from}/sstate/${yocto_version}"
+
+    # tmpk_* are interrupted git clones, never valid downloads.
+    merge_tree "${from}/downloads" "${yocto_cache_root}/downloads" 'tmpk_*'
     merge_tree "${from}/ccache" "${yocto_cache_root}/ccache"
     # Legacy flat layout: <root>/sstate-cache/<hash prefix>/...
     merge_tree "${from}/sstate-cache" "${yocto_sstate_dir}"
+
     # Already layered layout: <root>/sstate/<version>[/<arch>]/...
-    merge_tree "${from}/sstate/${yocto_version}" "${yocto_sstate_dir}"
+    # When an arch layer is selected, merge that layer instead of nesting
+    # <arch>/<arch> inside the destination.
+    layered_src="${from}/sstate/${yocto_version}"
+    if [[ -n "${yocto_sstate_arch}" && -d "${layered_src}/${yocto_sstate_arch}" ]]; then
+        layered_src="${layered_src}/${yocto_sstate_arch}"
+    fi
+    merge_tree "${layered_src}" "${yocto_sstate_dir}"
 
     printf 'migrated into %s; verify cache hits before removing %s\n' \
         "${yocto_cache_root}" "${from}"

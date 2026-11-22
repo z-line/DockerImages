@@ -18,7 +18,7 @@ mkdir -p "${yocto_cache_root}/downloads" "${yocto_cache_root}/ccache" "${yocto_s
 # is left behind, but never switch to it implicitly.
 legacy_cache="${source_dir}/.yocto-cache"
 if [[ -z "${YOCTO_CACHE_DIR:-}" && -d "${legacy_cache}" ]] \
-    && [[ -n "$(find "${legacy_cache}" -mindepth 1 -print -quit 2>/dev/null)" ]]; then
+    && [[ -n "$(find "${legacy_cache}" -type f -print -quit 2>/dev/null)" ]]; then
     echo "warning: legacy cache ${legacy_cache} is no longer used" >&2
     echo "         migrate it with: ${script_dir}/cache.sh migrate --from ${legacy_cache}" >&2
 fi
@@ -37,7 +37,9 @@ fi
 # Hold a shared lock for the container's lifetime so cache.sh gc can tell when
 # a build is running. The descriptor stays open across exec.
 exec 9>>"${yocto_lock_file}"
-flock -s 9
+if ! flock -s 9; then
+    echo "warning: cannot lock ${yocto_lock_file}; cache GC may race with this build" >&2
+fi
 
 docker_args=(
     --rm
@@ -45,10 +47,12 @@ docker_args=(
     --volume "${source_dir}:/workspace:z"
     # Mount the cache at its host path too, so project symlinks such as
     # build/downloads -> ~/.cache/yocto/downloads resolve inside the container.
+    # The :z on this mount labels the whole tree; the subpath mounts below must
+    # not relabel it again (that is expensive for large caches).
     --volume "${yocto_cache_root}:${yocto_cache_root}:z"
-    --volume "${yocto_cache_root}/downloads:/downloads:z"
-    --volume "${yocto_sstate_dir}:/sstate-cache:z"
-    --volume "${yocto_cache_root}/ccache:/ccache:z"
+    --volume "${yocto_cache_root}/downloads:/downloads"
+    --volume "${yocto_sstate_dir}:/sstate-cache"
+    --volume "${yocto_cache_root}/ccache:/ccache"
     --workdir /workspace
     --env DL_DIR=/downloads
     --env SSTATE_DIR=/sstate-cache

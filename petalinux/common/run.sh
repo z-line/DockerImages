@@ -17,6 +17,18 @@ if [[ -n "${sstate_arch}" ]]; then
 fi
 
 mkdir -p "${cache_root}/downloads" "${sstate_dir}"
+
+# The default cache root is shared with the Yocto image. Warn when an old
+# per-project cache is still present so it is migrated instead of silently
+# rebuilding everything.
+legacy_cache="${project_dir}/.petalinux-cache"
+if [[ -z "${PETALINUX_CACHE_DIR:-}" && -d "${legacy_cache}" ]] \
+    && [[ -n "$(find "${legacy_cache}" -type f -print -quit 2>/dev/null)" ]]; then
+    echo "warning: legacy cache ${legacy_cache} is no longer used" >&2
+    echo "         keep using it with PETALINUX_CACHE_DIR=${legacy_cache}" >&2
+    echo "         or move its downloads/sstate into ${cache_root}" >&2
+fi
+
 if [[ "$#" -eq 0 ]]; then
     set -- bash
 fi
@@ -28,9 +40,10 @@ docker_args=(
     --volume "${project_dir}:/workspace:z"
     # Mount the cache at its host path too, so project symlinks such as
     # build/downloads -> ~/.cache/yocto/downloads resolve inside the container.
+    # The :z labels the whole tree; the subpath mounts must not relabel it again.
     --volume "${cache_root}:${cache_root}:z"
-    --volume "${cache_root}/downloads:/downloads:z"
-    --volume "${sstate_dir}:/sstate-cache:z"
+    --volume "${cache_root}/downloads:/downloads"
+    --volume "${sstate_dir}:/sstate-cache"
     --workdir /workspace
     --env DL_DIR=/downloads
     --env SSTATE_DIR=/sstate-cache

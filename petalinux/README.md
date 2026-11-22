@@ -105,6 +105,11 @@ ln -s ~/.cache/yocto/downloads /path/to/project/build/downloads
 ln -s ~/.cache/yocto/sstate/2021.1 /path/to/project/build/sstate-cache
 ```
 
+2026.1 工程把版本层换成 `sstate/2026.1`。升级前使用工程内 `.petalinux-cache` 的
+工程，`run.sh` 检测到非空旧目录时会提示：可继续设置
+`PETALINUX_CACHE_DIR=/path/to/project/.petalinux-cache`，或把旧的 `downloads` /
+`sstate` 合并到 `~/.cache/yocto` 后删除旧目录。
+
 `build/conf/local.conf` 由 PetaLinux 自动生成，不建议直接修改。不使用软链时，可在
 `project-spec/meta-user/conf/petalinuxbsp.conf` 中覆盖默认路径：
 

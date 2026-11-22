@@ -92,9 +92,9 @@ YOCTO_VERSION=kirkstone ./cache.sh gc
 ```
 
 `sstate` 按修改时间成对删除 `.siginfo` 与对应的 `*.tar.*`，只会导致后续重建，
-不会破坏缓存一致性；`downloads` 不做自动删除。清理前无需手动停止构建，脚本会
-通过 `.cache.lock` 检测并拒绝执行。也可通过 `make cache-info`、`make cache-gc`
-调用。
+不会破坏缓存一致性；`downloads` 不做自动删除。通过 `run.sh` 启动的构建会持有
+共享锁，`gc` 检测到后拒绝执行；手工 `docker run` 的构建不受此保护。也可通过
+`make cache-info`、`make cache-gc` 调用。
 
 迁移进来的 sstate 保留原始修改时间，刚迁移完不要用较小的 `--sstate-days` 清理，
 否则会删除仍然有效的旧条目。
@@ -107,8 +107,11 @@ YOCTO_VERSION=kirkstone ./cache.sh gc
 ./cache.sh migrate --from /path/to/project/.yocto-cache
 ```
 
-命令会合并 `downloads`、`ccache` 和旧的扁平 `sstate-cache`（归入当前版本层）。
-确认新构建能命中缓存后再删除旧目录。
+命令会合并 `downloads`、`ccache` 和旧的扁平 `sstate-cache`（归入当前
+`YOCTO_VERSION` 层；设置了 `YOCTO_SSTATE_ARCH` 时归入对应架构层）。迁移使用
+no-clobber：目标已有同名文件会保留，`tmpk_*` 临时目录会跳过，绝对路径软链会
+给出警告；迁移期间持有构建锁，检测到构建进行时会拒绝执行。确认新构建能命中
+缓存后再删除旧目录。
 
 ### 接入已有工程
 
@@ -129,3 +132,6 @@ ln -s ~/.cache/yocto/sstate/scarthgap /path/to/project/build/sstate-cache
 sstate 只有在 Yocto 版本和构建镜像（工具链）一致时才可跨主机复用。可以把
 `YOCTO_CACHE_DIR` 指到 NFS/Samba 挂载点，或另行配置 `SSTATE_MIRRORS`；本仓库
 不内置远程镜像配置。
+
+跨主机共享要求文件系统支持 `flock`。不支持时 `run.sh` 会告警并继续，`cache.sh`
+的清理命令可能因拿不到锁而拒绝执行。
