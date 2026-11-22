@@ -4,7 +4,7 @@ set -euo pipefail
 version="${PETALINUX_VERSION:-2026.1}"
 image="${IMAGE_NAME:-petalinux:${version}}"
 project_dir="${1:-$PWD}"
-cache_root="${PETALINUX_CACHE_DIR:-${project_dir}/.petalinux-cache}"
+cache_root="${PETALINUX_CACHE_DIR:-${XDG_CACHE_HOME:-${HOME}/.cache}/yocto}"
 sstate_arch="${PETALINUX_SSTATE_ARCH:-}"
 shift || true
 
@@ -26,6 +26,9 @@ docker_args=(
     --userns=keep-id
     --hostname petalinux
     --volume "${project_dir}:/workspace:z"
+    # Mount the cache at its host path too, so project symlinks such as
+    # build/downloads -> ~/.cache/yocto/downloads resolve inside the container.
+    --volume "${cache_root}:${cache_root}:z"
     --volume "${cache_root}/downloads:/downloads:z"
     --volume "${sstate_dir}:/sstate-cache:z"
     --workdir /workspace

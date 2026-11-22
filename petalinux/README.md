@@ -77,12 +77,11 @@ root 用户运行，减少挂载工程目录时的权限问题。
 ## 下载与 sstate 缓存
 
 PetaLinux 构建需要下载大量源码并生成 sstate 缓存，运行脚本会自动挂载共享缓存
-目录以加速重复构建。缓存默认保存在工程旁的 `.petalinux-cache`，可通过
-`PETALINUX_CACHE_DIR` 指定共享缓存根目录（适合多个工程复用）。缓存按共享性
-分层组织：
+目录以加速重复构建。缓存默认保存在用户级全局目录，与 Yocto 镜像共用 downloads，
+可通过 `PETALINUX_CACHE_DIR` 指定其他位置。缓存按共享性分层组织：
 
 ```
-PETALINUX_CACHE_DIR
+${PETALINUX_CACHE_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/yocto}
 ├── downloads/                 # 全局共享：跨版本、跨架构（源码包与版本无关）
 └── sstate/
     └── <版本>/                # 按版本隔离（2021.1 / 2026.1 等，sstate 不兼容）
@@ -95,23 +94,29 @@ PETALINUX_CACHE_DIR
 打包）布局一致：
 
 ```bash
-PETALINUX_CACHE_DIR=/path/to/shared-cache \
-PETALINUX_SSTATE_ARCH=aarch64 \
-./common/run.sh /path/to/project petalinux-build
+PETALINUX_SSTATE_ARCH=aarch64 ./common/run.sh /path/to/project petalinux-build
 ```
 
-容器内分别以 `DL_DIR=/downloads` 和 `SSTATE_DIR=/sstate-cache` 提供，并通过
-对应版本的 BitBake 环境允许列表传递：2021.1 使用 `BB_ENV_EXTRAWHITE`，2026.1
-使用 `BB_ENV_PASSTHROUGH_ADDITIONS`。要让工程实际使用这两个目录，在
-`project-spec/meta-user/conf/petalinuxbsp.conf` 中添加：
+工程内可以保留 `build/downloads`、`build/sstate-cache` 原路径，改用软链接入共享
+缓存；`run.sh` 会把缓存根以相同绝对路径挂载进容器，软链在容器内直接可解析：
+
+```bash
+ln -s ~/.cache/yocto/downloads /path/to/project/build/downloads
+ln -s ~/.cache/yocto/sstate/2021.1 /path/to/project/build/sstate-cache
+```
+
+`build/conf/local.conf` 由 PetaLinux 自动生成，不建议直接修改。不使用软链时，可在
+`project-spec/meta-user/conf/petalinuxbsp.conf` 中覆盖默认路径：
 
 ```conf
 DL_DIR = "/downloads"
 SSTATE_DIR = "/sstate-cache"
 ```
 
-或在 `petalinux-config` 的 Yocto Settings 中设置 `Add pre-mirror url`
-（`file:///downloads`）与 `Local sstate feeds settings`（`/sstate-cache`）。
+容器内分别以 `DL_DIR=/downloads` 和 `SSTATE_DIR=/sstate-cache` 提供，并通过
+对应版本的 BitBake 环境允许列表传递：2021.1 使用 `BB_ENV_EXTRAWHITE`，2026.1
+使用 `BB_ENV_PASSTHROUGH_ADDITIONS`。工程自身显式设置的 `DL_DIR`/`SSTATE_DIR`
+优先级高于环境变量，因此已有工程用软链或 `petalinuxbsp.conf` 接入更可靠。
 
 2021.1 Unified Installer 的实际工具路径为 `/opt/Xilinx/PetaLinux/2021.1/tool`；
 2026.1 独立安装器的工具路径为 `/opt/petalinux/2026.1`。
